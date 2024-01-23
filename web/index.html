@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>GoBro</title>
+    <style>
+        #output {
+            width: 400px;
+            height: 600px;
+            /* overflow: auto; */
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 5px;
+            margin-top: 10px;
+            resize: none;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="./index.js"></script>
+
+    <button id="connectBtn" onclick="newWSConnection()">Соединиться</button>
+    <button id="clearBtn">Очистить</button>
+
+    <textarea id="output" onclick="clearOutput(event)"></textarea>
+</body>
+
+</html>
