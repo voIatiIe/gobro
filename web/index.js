@@ -12,7 +12,7 @@ newWSConnection = () => {
 
     ws.onopen = function () { logOutput('WebSocket connection opened') };
     ws.onclose = function () { logOutput('WebSocket connection closed') };
-    ws.onmessage = function (event) { logOutput('Message received: ' + event.data) };
+    ws.onmessage = function (event) { logOutput('Message received: ' + event.data); displayImage(event); };
     ws.onerror = function (error) { logOutput('WebSocket Error: ' + error) };
 
     sendCursorPosition = () => {
@@ -22,10 +22,16 @@ newWSConnection = () => {
         ws.send(message);
     }
 
-    setInterval(sendCursorPosition, 60);
+    setInterval(sendCursorPosition, 100);
 }
 
 clearOutput = (e) => {
     e.preventDefault();
     document.getElementById('output').value = '';
+}
+
+displayImage = (e) => {
+    let image = document.getElementById('image');
+
+    image.src = window.URL.createObjectURL(e.data);
 }

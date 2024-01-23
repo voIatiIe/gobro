@@ -68,7 +68,7 @@ type CursorMessage struct {
 func WSHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("New connection")
 
-	browser, err := NewBrowser("https://google.com", WithQuality(50))
+	browser, err := NewBrowser("https://google.com", WithQuality(30))
 	if err != nil { 
 		log.Println("Could not initialize browser:", err)
 		return
@@ -82,25 +82,6 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ws.Close()
-
-	// ####
-
-	// var message CursorMessage
-	// for {
-	// 	_, data, err := ws.ReadMessage()
-
-	// 	if err != nil {
-	// 		log.Println("Could not read message:", err)
-	// 		return
-	// 	}
-	// 	if json.Unmarshal(data, &message) != nil {
-	// 		log.Println("Could not parse message:", err)
-	// 		return
-	// 	}
-	// 	log.Printf("Received: %+v\n", message)
-	// }
-
-	// ####
 
 	ch := make(chan CursorMessage)
 	wg := make(chan struct{}, 2)
@@ -129,7 +110,7 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 						browser.Cancel()
 						return
 					}
-					log.Printf("Received: %+v\n", message)
+					// log.Printf("Received: %+v\n", message)
 
 					ch <- message
 			}
@@ -140,17 +121,20 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 		defer log.Println("Exiting browser rendering loop...")
 		defer WGFunc(wg)
 
+		var buffer []byte
+
 		for {
 			select {
 				case <-browser.Ctx.Done():
 					return
 				case message := <-ch:
-					if err := browser.MoveCursor(message.X, message.Y); err != nil { browser.Cancel(); return }
-					// if err := browser.Screenshot(); err != nil { browser.Cancel(); return }
-
-					log.Println("[Render step]")
-				// default:
-				// 	if err := browser.Screenshot(); err != nil { browser.Cancel(); return }
+					if err := browser.MoveCursor(message.X, message.Y, &buffer); err != nil { browser.Cancel(); return }
+					
+					if err := ws.WriteMessage(websocket.BinaryMessage, buffer); err != nil {
+						log.Println("Could not write message:", err)
+						browser.Cancel()
+						return
+					}
 			}
 		}
 	}()

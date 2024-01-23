@@ -2,9 +2,7 @@ package gobro
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -41,7 +39,13 @@ type Browser struct {
 func NewBrowser(url string, opts ...BrowserOptsFunc) (*Browser, error) {
 	defaultOpts := defaultBrowserOpts()
 
-	ctx, cancel := chromedp.NewContext(context.Background())
+	allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.DisableGPU,
+		chromedp.Headless,
+	)
+	allocCtx, _ := chromedp.NewExecAllocator(context.Background(), allocOpts...)
+
+	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(log.Printf))
 
 	for _, opt := range opts { opt(defaultOpts) }
 
@@ -63,11 +67,9 @@ func NewBrowser(url string, opts ...BrowserOptsFunc) (*Browser, error) {
 }
 
 
-func (b *Browser) MoveCursor(x, y float64) error {
-	var buffer []byte
-
+func (b *Browser) MoveCursor(x, y float64, buffer *[]byte) error {
 	click := MouseClickXY(x, y, chromedp.ButtonNone, chromedp.ButtonModifiers())
-	screenshot := chromedp.FullScreenshot(&buffer, b.Opts.quality)
+	screenshot := chromedp.FullScreenshot(buffer, b.Opts.quality)
 
 	start := time.Now()
 	if err := chromedp.Run(
@@ -79,8 +81,5 @@ func (b *Browser) MoveCursor(x, y float64) error {
 	); err != nil { return err }
 	log.Printf("Execution time %s\n", time.Since(start))
 
-	fname := fmt.Sprintf("./screenshots/screenshot%d.png", b.Opts.counter)
-	b.Opts.counter++
-
-	return os.WriteFile(fname, buffer, 0o644)
+	return nil
 }
