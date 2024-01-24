@@ -7,7 +7,6 @@
         #output {
             width: 400px;
             height: 600px;
-            /* overflow: auto; */
             overflow-y: scroll;
             border: 1px solid #ccc;
             padding: 5px;
@@ -29,9 +28,9 @@
     <script src="./index.js"></script>
 
     <button id="connectBtn" onclick="newWSConnection()">Соединиться</button>
-    <button id="clearBtn">Очистить</button>
+    <button id="clearBtn" onclick="clearOutput(event)">Очистить</button>
 
-    <textarea id="output" onclick="clearOutput(event)"></textarea>
+    <textarea id="output"></textarea>
 
     <img id="image"/>
 </body>

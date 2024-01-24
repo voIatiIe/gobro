@@ -1,9 +1,9 @@
 package gobro
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -41,9 +41,6 @@ func defaultServerOpts() *ServerOpts {
 func NewServer(opts ...ServerOptsFunc) *Server {
 	defaultOpts := defaultServerOpts()
 
-	// os.RemoveAll("./screenshots/")
-	// os.MkdirAll("./screenshots/", 0o644)
-
 	for _, opt := range opts { opt(defaultOpts) }
 	
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
@@ -68,8 +65,15 @@ type CursorMessage struct {
 func WSHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("New connection")
 
-	browser, err := NewBrowser("https://google.com", WithQuality(30))
-	if err != nil { 
+	browser, err := NewBrowser(
+		"https://witeboard.com/bb8b6850-bafa-11ee-b766-b37e6fa5f52c",
+		WithQuality(80),
+		WithHeight(720),
+		WithWidth(1280),
+		// WithHeight(1080),
+		// WithWidth(1920),
+	)
+	if err != nil {
 		log.Println("Could not initialize browser:", err)
 		return
 	}
@@ -83,61 +87,11 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
-	ch := make(chan CursorMessage)
-	wg := make(chan struct{}, 2)
+	wg := &sync.WaitGroup{}; wg.Add(2);
+	lock := &sync.Mutex{}
 
-	WGFunc := func(ch chan struct{}) { <-ch }
+	go browser.Control(ws, wg, lock)
+	go browser.Stream(ws, wg, lock)
 
-	go func() {
-		defer log.Println("Exiting websocket pooling loop...")
-		defer WGFunc(wg)
-		var message CursorMessage
-
-		for {
-			select {
-				case <-browser.Ctx.Done():
-					return
-				default:
-					_, data, err := ws.ReadMessage()
-
-					if err != nil {
-						log.Println("Could not read message:", err)
-						browser.Cancel()
-						return
-					}
-					if json.Unmarshal(data, &message) != nil {
-						log.Println("Could not parse message:", err)
-						browser.Cancel()
-						return
-					}
-					// log.Printf("Received: %+v\n", message)
-
-					ch <- message
-			}
-		}
-	}()
-
-	go func() {
-		defer log.Println("Exiting browser rendering loop...")
-		defer WGFunc(wg)
-
-		var buffer []byte
-
-		for {
-			select {
-				case <-browser.Ctx.Done():
-					return
-				case message := <-ch:
-					if err := browser.MoveCursor(message.X, message.Y, &buffer); err != nil { browser.Cancel(); return }
-					
-					if err := ws.WriteMessage(websocket.BinaryMessage, buffer); err != nil {
-						log.Println("Could not write message:", err)
-						browser.Cancel()
-						return
-					}
-			}
-		}
-	}()
-
-	for range wg {}
+	wg.Wait()
 }

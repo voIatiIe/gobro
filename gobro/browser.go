@@ -2,16 +2,19 @@ package gobro
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
-	"time"
+	"sync"
 
 	"github.com/chromedp/chromedp"
+	"github.com/gorilla/websocket"
 )
 
 type BrowserOpts struct {
 	width, height int64
 	quality int
-	counter int
 }
 
 func defaultBrowserOpts() *BrowserOpts {
@@ -66,20 +69,112 @@ func NewBrowser(url string, opts ...BrowserOptsFunc) (*Browser, error) {
 	return browser, nil
 }
 
+func (b *Browser) GenericClickFunc(x, y float64, opts ...chromedp.MouseOption) error {
+	action := MouseClickXY(x, y, opts...)
 
-func (b *Browser) MoveCursor(x, y float64, buffer *[]byte) error {
-	click := MouseClickXY(x, y, chromedp.ButtonNone, chromedp.ButtonModifiers())
-	screenshot := chromedp.FullScreenshot(buffer, b.Opts.quality)
+	return chromedp.Run(b.Ctx, action)
+}
 
-	start := time.Now()
-	if err := chromedp.Run(
-		b.Ctx,
-		chromedp.Tasks{
-			click,
-			screenshot,
-		},
-	); err != nil { return err }
-	log.Printf("Execution time %s\n", time.Since(start))
+func (b *Browser) MoveFunc(x, y float64) error { return b.GenericClickFunc(x, y, chromedp.ButtonNone) }
+func (b *Browser) LeftClickFunc(x, y float64) error { return b.GenericClickFunc(x, y, chromedp.ButtonLeft) }
 
-	return nil
+func (b *Browser) TakeScreenshot(buffer *[]byte, quality int) error {
+	action := Screenshot(buffer, quality)
+
+	return chromedp.Run(b.Ctx, action)
+}
+
+func (b *Browser) Stream(ws *websocket.Conn, wg *sync.WaitGroup, lock sync.Locker) {
+	defer wg.Done()
+	defer log.Println("Terminating stream...")
+
+	var buffer []byte
+
+	for {
+		select {
+			case <-b.Ctx.Done():
+				return
+			default:
+				lock.Lock()
+				if err := b.TakeScreenshot(&buffer, b.Opts.quality); err != nil {
+					log.Println("Could not take screenshot:", err)
+					b.Cancel()
+					lock.Unlock()
+					return
+				}
+				lock.Unlock()
+
+				if err := ws.WriteMessage(websocket.BinaryMessage, buffer); err != nil {
+					log.Println("Could not write message:", err)
+					b.Cancel()
+					return
+				}
+		}
+	}
+}
+
+type CommandType uint8
+
+const (
+	Move CommandType = 0
+	LeftClick CommandType = 1
+	Scroll CommandType = 2
+
+	Input CommandType = 3
+	Delete CommandType = 4
+)
+
+type CommandMessage struct {
+	Type CommandType `json:"type"`
+	Body struct {
+		X float64 `json:"x"`
+		Y float64`json:"y"`
+		Text string `json:"text"`
+	} `json:"body"`
+}
+
+
+func (b *Browser) Control(ws *websocket.Conn, wg *sync.WaitGroup, lock sync.Locker) {
+	defer wg.Done()
+
+	var message CommandMessage
+
+	for {
+		select {
+			case <-b.Ctx.Done():
+				return
+			default:
+				_, data, err := ws.ReadMessage()
+
+				if err != nil {
+					log.Println("Could not read message:", err)
+					b.Cancel()
+					return
+				}
+
+				if err := json.Unmarshal(data, &message); err != nil {
+					log.Println("Could not unmarshal message:", err)
+					b.Cancel()
+					return
+				}
+				
+				lock.Lock()
+				if err := b.Execute(message); err != nil {
+					log.Println("Could not execute command, skipped:", err)
+				}
+				lock.Unlock()
+		}
+	}
+}
+
+func (b *Browser) Execute(cmd CommandMessage) error {
+	switch cmd.Type {
+	case Move:
+		return b.MoveFunc(cmd.Body.X, cmd.Body.Y)
+	case LeftClick:
+		return b.LeftClickFunc(cmd.Body.X, cmd.Body.Y)
+	default:
+		errStr := fmt.Sprintf("Unsupported command type: %d\n", cmd.Type)
+		return errors.New(errStr)
+	}
 }

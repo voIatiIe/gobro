@@ -4,22 +4,24 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 )
 
 func InitCursor(opts ...chromedp.MouseOption) chromedp.Action {
 	cursor := 
 		`
-			var img = new Image();
-			img.src = 'https://cdn130.picsart.com/275339252006211.png';
-			img.style.position = 'absolute';
-			img.style.left = '50%%';
-			img.style.top = '50%%';
-			img.style.height = '25px';
-			img.style.zIndex = '9999';
-			img.id = 'cursor'
+			var cursor = document.createElement('div');
+			cursor.style.width = '6px';
+			cursor.style.height = '6px';
+			cursor.style.backgroundColor = 'black';
+			cursor.style.borderRadius = '50%%';
+			cursor.style.position = 'absolute';
+			// cursor.style.transform = 'translate(-50%%, -50%%)';
+			cursor.style.zIndex = '9999';
+			cursor.id = 'cursor';
 
-			document.body.appendChild(img);
+			document.body.appendChild(cursor);
 		`
 
 	return chromedp.Evaluate(cursor, nil)
@@ -28,9 +30,27 @@ func InitCursor(opts ...chromedp.MouseOption) chromedp.Action {
 func drawCursor(x, y float64, ctx context.Context) chromedp.MouseAction {
 	cursor := fmt.Sprintf(
 		`
-			var cursorImage = document.getElementById('cursor');
-			cursorImage.style.left = '%f%%';
-			cursorImage.style.top = '%f%%';
+			var cursor = document.getElementById('cursor');
+
+			try {
+				if (cursor === null) {
+					cursor = document.createElement('div');
+
+					cursor.style.width = '6px';
+					cursor.style.height = '6px';
+					cursor.style.backgroundColor = 'black';
+					cursor.style.borderRadius = '50%%';
+					cursor.style.position = 'absolute';
+					// cursor.style.transform = 'translate(-50%%, -50%%)';
+					cursor.style.zIndex = '9999';
+					cursor.id = 'cursor';
+
+					document.body.appendChild(cursor);
+				}
+				cursor.style.left = '%f%%';
+				cursor.style.top = '%f%%';
+			}
+			catch(err) {}
 		`,
 		100.0 * x,
 		100.0 * y,
@@ -43,7 +63,30 @@ func MouseClickXY(x, y float64, opts ...chromedp.MouseOption) chromedp.MouseActi
 	click := chromedp.MouseClickXY(x, y, opts...)
 
 	return chromedp.ActionFunc(func(ctx context.Context) error {
-		drawCursor(x, y, ctx).Do(ctx)
-		return click.Do(ctx)
+		if err := click.Do(ctx); err != nil {
+			return err
+		}
+
+		return drawCursor(x, y, ctx).Do(ctx)
+	})
+}
+
+
+func Screenshot(res *[]byte, quality int) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		format := page.CaptureScreenshotFormatPng
+		if quality != 100 {
+			format = page.CaptureScreenshotFormatJpeg
+		}
+
+		var err error
+		*res, err = page.CaptureScreenshot().
+			WithCaptureBeyondViewport(false).
+			WithFromSurface(true).
+			WithFormat(format).
+			WithQuality(int64(quality)).
+			Do(ctx)
+
+		return err
 	})
 }
