@@ -66,7 +66,7 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("New connection")
 
 	browser, err := NewBrowser(
-		"https://witeboard.com/bb8b6850-bafa-11ee-b766-b37e6fa5f52c",
+		"https://vk.com/",
 		WithQuality(80),
 		WithHeight(720),
 		WithWidth(1280),

@@ -1,11 +1,14 @@
 var cursorX = 0.5, cursorY = 0.5;
+var cursorLastSentX = 0.5, cursorLastSentY = 0.5;
 
 const MessageType = {
     Move: 0,
     LeftClick: 1,
 }
 
-setCursorPosition = (x, y) => { cursorX = x / window.innerWidth; cursorY = y / window.innerHeight; }
+clamp = (number, min, max) => { return Math.max(min, Math.min(number, max)) }
+
+setCursorPosition = (x, y) => { cursorX = x; cursorY = y; }
 
 document.onmousemove = (event) => { setCursorPosition(event.clientX, event.clientY) };
 
@@ -37,15 +40,30 @@ newWSConnection = () => {
         ws.send(message);
     }
 
-    setInterval(() => { return sendCommand({type: MessageType.Move, body: { x: cursorX, y: cursorY }}) }, 30);
+    setInterval(() => {
+        if (cursorLastSentX === cursorX && cursorLastSentY === cursorY) { return }
+
+        cursorLastSentX = cursorX; cursorLastSentY = cursorY;
+
+        sendClick(null, cursorX, cursorY);
+    }, 30);
 
     sendClick = (button, x, y) => {
-        if (ws.readyState !== WebSocket.OPEN) { return }
+        const image = document.getElementById('image');
+
+        const rect = image.getBoundingClientRect()
+
+        x -= rect.left;
+        y -= rect.top;
+
+        body = { x: clamp(x / rect.width, 0.0, 1.0), y: clamp(y / rect.height, 0.0, 1.0) };
 
         switch (button) {
+            case null:
+                sendCommand({type: MessageType.Move, body: body});
+                break;
             case 0:
-                logOutput('Left click')
-                sendCommand({type: MessageType.LeftClick, body: { x: x, y: y }});
+                sendCommand({type: MessageType.LeftClick, body: body});
                 break;
             default:
                 break;
@@ -61,7 +79,7 @@ clearOutput = (e) => {
 }
 
 displayImage = (e) => {
-    let image = document.getElementById('image');
+    const image = document.getElementById('image');
 
     image.src = window.URL.createObjectURL(e.data);
 }

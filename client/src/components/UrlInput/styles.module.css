@@ -1,0 +1,14 @@
+.urlInput {
+    border: 1px solid #ccc;
+    margin-left: 5px;
+    margin-right: 5px;
+    height: 25px;
+    display: flex;
+    flex-grow: 1;
+    width: 800px;
+}
+
+.urlInput:focus {
+    border-color: black;
+    outline-width: 0;
+}

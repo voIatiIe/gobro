@@ -4,6 +4,6 @@ services:
   server:
     build: .
     ports:
-      - "8010:8010"
+      - 8010:8010
     volumes:
       - .:/server

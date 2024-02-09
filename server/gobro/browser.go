@@ -61,7 +61,7 @@ func NewBrowser(url string, opts ...BrowserOptsFunc) (*Browser, error) {
 	tasks := chromedp.Tasks{
 		chromedp.EmulateViewport(browser.Opts.width, browser.Opts.height),
 		chromedp.Navigate(url),
-		InitCursor(),
+		// InitCursor(),
 	}
 
 	if err := chromedp.Run(browser.Ctx, tasks); err != nil { return nil, err }
@@ -70,6 +70,9 @@ func NewBrowser(url string, opts ...BrowserOptsFunc) (*Browser, error) {
 }
 
 func (b *Browser) GenericClickFunc(x, y float64, opts ...chromedp.MouseOption) error {
+	x *= float64(b.Opts.width)
+	y *= float64(b.Opts.height)
+
 	action := MouseClickXY(x, y, opts...)
 
 	return chromedp.Run(b.Ctx, action)
@@ -113,24 +116,28 @@ func (b *Browser) Stream(ws *websocket.Conn, wg *sync.WaitGroup, lock sync.Locke
 	}
 }
 
-type CommandType uint8
+type CommandType string
 
 const (
-	Move CommandType = 0
-	LeftClick CommandType = 1
-	Scroll CommandType = 2
+	Move CommandType = "MOUSE_MOVE"
+	LeftClick CommandType = "MOUSE_CLICK"
+	Scroll CommandType = "SCROLL"
+	Resize CommandType = "RESIZE"
 
-	Input CommandType = 3
-	Delete CommandType = 4
+	Input CommandType = "INPUT"
+	Delete CommandType = "DELETE"
 )
+
+type CommandPayload struct {
+	Coordinates struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	} `json:"coordinates"`
+}
 
 type CommandMessage struct {
 	Type CommandType `json:"type"`
-	Body struct {
-		X float64 `json:"x"`
-		Y float64`json:"y"`
-		Text string `json:"text"`
-	} `json:"body"`
+	Payload CommandPayload `json:"payload"`
 }
 
 
@@ -170,11 +177,11 @@ func (b *Browser) Control(ws *websocket.Conn, wg *sync.WaitGroup, lock sync.Lock
 func (b *Browser) Execute(cmd CommandMessage) error {
 	switch cmd.Type {
 	case Move:
-		return b.MoveFunc(cmd.Body.X, cmd.Body.Y)
+		return b.MoveFunc(cmd.Payload.Coordinates.X, cmd.Payload.Coordinates.Y)
 	case LeftClick:
-		return b.LeftClickFunc(cmd.Body.X, cmd.Body.Y)
+		return b.LeftClickFunc(cmd.Payload.Coordinates.X, cmd.Payload.Coordinates.Y)
 	default:
-		errStr := fmt.Sprintf("Unsupported command type: %d\n", cmd.Type)
+		errStr := fmt.Sprintf("Unsupported command type: %s\n", cmd.Type)
 		return errors.New(errStr)
 	}
 }

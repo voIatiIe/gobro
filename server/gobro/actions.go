@@ -17,7 +17,7 @@ func InitCursor(opts ...chromedp.MouseOption) chromedp.Action {
 			cursor.style.backgroundColor = 'black';
 			cursor.style.borderRadius = '50%%';
 			cursor.style.position = 'absolute';
-			// cursor.style.transform = 'translate(-50%%, -50%%)';
+			cursor.style.transform = 'translate(-50%%, -50%%)';
 			cursor.style.zIndex = '9999';
 			cursor.id = 'cursor';
 
@@ -27,7 +27,7 @@ func InitCursor(opts ...chromedp.MouseOption) chromedp.Action {
 	return chromedp.Evaluate(cursor, nil)
 }
 
-func drawCursor(x, y float64, ctx context.Context) chromedp.MouseAction {
+func drawCursor(x, y float64) chromedp.MouseAction {
 	cursor := fmt.Sprintf(
 		`
 			var cursor = document.getElementById('cursor');
@@ -41,19 +41,17 @@ func drawCursor(x, y float64, ctx context.Context) chromedp.MouseAction {
 					cursor.style.backgroundColor = 'black';
 					cursor.style.borderRadius = '50%%';
 					cursor.style.position = 'absolute';
-					// cursor.style.transform = 'translate(-50%%, -50%%)';
+					cursor.style.transform = 'translate(-50%%, -50%%)';
 					cursor.style.zIndex = '9999';
 					cursor.id = 'cursor';
 
 					document.body.appendChild(cursor);
 				}
-				cursor.style.left = '%f%%';
-				cursor.style.top = '%f%%';
+				cursor.style.left = '%fpx';
+				cursor.style.top = '%fpx';
 			}
 			catch(err) {}
-		`,
-		100.0 * x,
-		100.0 * y,
+		`, x, y,
 	)
 
 	return chromedp.Evaluate(cursor, nil)
@@ -63,11 +61,23 @@ func MouseClickXY(x, y float64, opts ...chromedp.MouseOption) chromedp.MouseActi
 	click := chromedp.MouseClickXY(x, y, opts...)
 
 	return chromedp.ActionFunc(func(ctx context.Context) error {
-		if err := click.Do(ctx); err != nil {
-			return err
+		tasks := chromedp.Tasks{
+			click,
+			// drawCursor(x, y),
 		}
 
-		return drawCursor(x, y, ctx).Do(ctx)
+		return chromedp.Run(ctx, tasks)
+		// if err := click.Do(ctx); err != nil {
+		// 	return err
+		// }
+
+		// return drawCursor(x, y, ctx).Do(ctx)
+
+		// if err := drawCursor(x, y).Do(ctx); err != nil {
+		// 	return err
+		// }
+
+		// return click.Do(ctx)
 	})
 }
 
