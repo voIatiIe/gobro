@@ -8,18 +8,17 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-
 var upgrader = websocket.Upgrader{
-    ReadBufferSize:  1024,
-    WriteBufferSize: 1024,
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 }
 
 type ServerOpts struct {
 	addr string
-	url string
+	url  string
 }
 
-type Server struct { Opts *ServerOpts }
+type Server struct{ Opts *ServerOpts }
 
 type ServerOptsFunc func(*ServerOpts)
 
@@ -34,15 +33,17 @@ func WithUrl(url string) ServerOptsFunc {
 func defaultServerOpts() *ServerOpts {
 	return &ServerOpts{
 		addr: ":8010",
-		url: "/ws",
+		url:  "/ws",
 	}
 }
 
 func NewServer(opts ...ServerOptsFunc) *Server {
 	defaultOpts := defaultServerOpts()
 
-	for _, opt := range opts { opt(defaultOpts) }
-	
+	for _, opt := range opts {
+		opt(defaultOpts)
+	}
+
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
 	return &Server{Opts: defaultOpts}
@@ -61,17 +62,14 @@ type CursorMessage struct {
 	Y float64 `json:"y"`
 }
 
-
 func WSHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("New connection")
 
 	browser, err := NewBrowser(
-		"https://vk.com/",
+		"https://google.com/",
 		WithQuality(80),
 		WithHeight(720),
 		WithWidth(1280),
-		// WithHeight(1080),
-		// WithWidth(1920),
 	)
 	if err != nil {
 		log.Println("Could not initialize browser:", err)
@@ -87,7 +85,8 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
-	wg := &sync.WaitGroup{}; wg.Add(2);
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
 	lock := &sync.Mutex{}
 
 	go browser.Control(ws, wg, lock)

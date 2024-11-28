@@ -7,3 +7,5 @@ COPY . /server
 WORKDIR /server
 
 RUN go install
+
+ENTRYPOINT ["go", "run", "main.go"]
